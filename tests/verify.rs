@@ -76,3 +76,42 @@ fn garbage_is_error() {
     let r = verify(&[0, 1, 2, 3], None, Validation::Chain);
     assert!(matches!(r, Err(Error::Verify(_)) | Err(Error::Invalid)));
 }
+
+// Exercises the concurrency guard: many parallel verifications (shared read
+// lock) interleaved with certificate additions (exclusive write lock).
+#[test]
+fn concurrent_verify_and_add() {
+    setup();
+    let sig = read("detached.p7s");
+    let dat = read("content.dat");
+    let certs: Vec<Vec<u8>> = std::fs::read_dir(fx("certs"))
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .map(|p| std::fs::read(p).unwrap())
+        .collect();
+
+    std::thread::scope(|s| {
+        // verification threads
+        for _ in 0..8 {
+            let (sig, dat) = (&sig, &dat);
+            s.spawn(move || {
+                for _ in 0..50 {
+                    let v = verify(sig, Some(dat), Validation::Chain).unwrap();
+                    assert_eq!(v.signer_count, 1);
+                }
+            });
+        }
+        // concurrent (re-)additions of the trusted certs
+        for _ in 0..2 {
+            let certs = &certs;
+            s.spawn(move || {
+                for _ in 0..20 {
+                    let refs: Vec<&[u8]> = certs.iter().map(|c| c.as_slice()).collect();
+                    add_trusted_certs(&refs).unwrap();
+                }
+            });
+        }
+    });
+}

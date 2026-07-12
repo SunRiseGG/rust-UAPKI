@@ -20,9 +20,32 @@
 //!
 //! Validation levels — [`Validation::Struct`] (signature + structure only) and
 //! [`Validation::Chain`] (plus the chain to trusted CAs, offline, no OCSP/CRL).
+//!
+//! # Thread safety
+//! All functions are safe to call concurrently. [`verify`] and [`verify_file`]
+//! run in parallel with each other, while [`add_trusted_certs`] is exclusive
+//! against verifications — an internal `RwLock` mirrors UAPKI's own
+//! serial/thread coordination over the process-global certificate store.
 
 use std::ffi::CString;
 use std::os::raw::c_int;
+use std::sync::RwLock;
+
+// UAPKI's global certificate store is shared process-wide. The JSON API
+// coordinated access with a serial/thread scheme (VERIFY runs concurrently;
+// INIT/ADD_CERT wait for all verifications and block new ones). Our direct
+// interface bypasses that, so we replicate it here: `add_trusted_certs` takes
+// the write lock (exclusive), `verify`/`verify_file` take the read lock.
+// Without this, a concurrent add during a verify would race on the store.
+static STORE_LOCK: RwLock<()> = RwLock::new(());
+
+fn read_lock() -> std::sync::RwLockReadGuard<'static, ()> {
+    STORE_LOCK.read().unwrap_or_else(|e| e.into_inner())
+}
+
+fn write_lock() -> std::sync::RwLockWriteGuard<'static, ()> {
+    STORE_LOCK.write().unwrap_or_else(|e| e.into_inner())
+}
 
 /// Validation level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,6 +88,7 @@ pub struct Verified {
 /// Adds trusted CA root certificates (DER) to the library cache.
 /// Call once before verifying; can be appended to.
 pub fn add_trusted_certs(certs: &[&[u8]]) -> Result<(), Error> {
+    let _guard = write_lock(); // exclusive: no verification may read the store
     let ptrs: Vec<*const u8> = certs.iter().map(|c| c.as_ptr()).collect();
     let lens: Vec<usize> = certs.iter().map(|c| c.len()).collect();
     let ret = unsafe {
@@ -91,6 +115,7 @@ fn interpret(ret: c_int, count: c_int, all_valid: c_int) -> Result<Verified, Err
 /// In-memory CMS/CAdES verification.
 /// `data == None` — attached envelope; `Some(bytes)` — detached with data.
 pub fn verify(sign: &[u8], data: Option<&[u8]>, validation: Validation) -> Result<Verified, Error> {
+    let _guard = read_lock(); // shared: concurrent with other verifications
     let (data_ptr, data_len) = match data {
         Some(d) => (d.as_ptr(), d.len()),
         None => (std::ptr::null(), 0),
@@ -115,6 +140,7 @@ pub fn verify(sign: &[u8], data: Option<&[u8]>, validation: Validation) -> Resul
 /// file.
 pub fn verify_file(sign: &[u8], data_path: &str, validation: Validation) -> Result<Verified, Error> {
     let c_path = CString::new(data_path).map_err(|_| Error::BadPath)?;
+    let _guard = read_lock(); // shared: concurrent with other verifications
     let mut count: c_int = 0;
     let mut all_valid: c_int = 0;
     let ret = unsafe {
