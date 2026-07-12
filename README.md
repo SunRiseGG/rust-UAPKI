@@ -1,6 +1,6 @@
 # rust-UAPKI
 
-Rust wrapper for digital-signature verification (CMS/CAdES, `.p7s`) on top of
+Rust wrapper for digital-signature verification (CMS/CAdES) on top of
 [UAPKI](https://github.com/specinfo-ua/UAPKI) — **without the `process()`
 JSON interface**. It calls UAPKI's internal `Doc::Verify::VerifySignedDoc`
 classes directly.
