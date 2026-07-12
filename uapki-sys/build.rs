@@ -32,10 +32,14 @@ fn main() {
     // Rebuild on any UAPKI source change.
     println!("cargo:rerun-if-changed={}", src.join("library").display());
 
-    // Build UAPKI static libraries.
+    // Build UAPKI static libraries WITHOUT LTO.
     let dst = cmake::Config::new(src.join("library"))
-        .profile("Release")
+        .define("CMAKE_BUILD_TYPE", "")
         .define("UAPKI_LIBS_TYPE", "STATIC")
+        .cflag("-O2")
+        .cflag("-fPIC")
+        .cxxflag("-O2")
+        .cxxflag("-fPIC")
         .build_target("uapki")
         .build();
     let lib_dir = dst.join("build").join("out");
