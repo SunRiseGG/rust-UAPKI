@@ -1,4 +1,4 @@
 [submodule "uapki-sys/uapki"]
 	path = uapki-sys/uapki
-	url = git@github.com:SunRiseGG/UAPKI.git
+	url = https://github.com/SunRiseGG/UAPKI.git
 	branch = uapki-up

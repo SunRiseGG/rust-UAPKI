@@ -2,6 +2,7 @@
 name = "uapki-sys"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.94.0"
 description = "Native bindings to UAPKI (specinfo-ua/UAPKI) — direct verification interface without JSON"
 license = "BSD-2-Clause"
 repository = "https://github.com/SunRiseGG/rust-UAPKI"
