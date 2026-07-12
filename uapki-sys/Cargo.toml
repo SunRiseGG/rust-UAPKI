@@ -1,0 +1,11 @@
+[package]
+name = "uapki-sys"
+version = "0.1.0"
+edition = "2024"
+description = "Native bindings to UAPKI (specinfo-ua/UAPKI) — direct verification interface without JSON"
+license = "BSD-2-Clause"
+repository = "https://github.com/SunRiseGG/rust-UAPKI"
+links = "uapki"
+
+[build-dependencies]
+cmake = "0.1"
