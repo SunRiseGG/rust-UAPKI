@@ -37,4 +37,10 @@ unsafe extern "C" {
         out_signer_count: *mut c_int,
         out_all_valid: *mut c_int,
     ) -> c_int;
+
+    /// Total / trusted certificate count in the global store.
+    pub fn uapki_direct_cert_count(
+        out_total: *mut usize,
+        out_trusted: *mut usize,
+    ) -> c_int;
 }
