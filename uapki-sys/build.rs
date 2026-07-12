@@ -48,7 +48,7 @@ fn main() {
 /// Links the three UAPKI static archives.
 fn link_uapki_static() {
     for l in ["uapki", "uapkif", "uapkic"] {
-        println!("cargo:rustc-link-lib=static:+whole-archive={l}");
+        println!("cargo:rustc-link-lib=static={l}");
     }
 }
 
