@@ -41,25 +41,14 @@ fn main() {
     let lib_dir = dst.join("build").join("out");
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
-    link_uapki_static(&lib_dir);
+    link_uapki_static();
     link_system_deps();
 }
 
-/// UAPKI static archives have circular dependencies (uapki → uapkic/uapkif).
-/// GNU ld is single-pass — wrap them in a group; macOS ld resolves on its own.
-fn link_uapki_static(lib_dir: &Path) {
-    let libs = ["uapki", "uapkif", "uapkic"];
-    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    if target_os == "macos" {
-        for l in libs {
-            println!("cargo:rustc-link-lib=static={l}");
-        }
-    } else {
-        println!("cargo:rustc-link-arg=-Wl,--start-group");
-        for l in libs {
-            println!("cargo:rustc-link-arg={}", lib_dir.join(format!("lib{l}.a")).display());
-        }
-        println!("cargo:rustc-link-arg=-Wl,--end-group");
+/// Links the three UAPKI static archives.
+fn link_uapki_static() {
+    for l in ["uapki", "uapkif", "uapkic"] {
+        println!("cargo:rustc-link-lib=static={l}");
     }
 }
 
