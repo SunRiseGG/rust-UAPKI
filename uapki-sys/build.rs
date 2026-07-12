@@ -33,8 +33,18 @@ fn main() {
     println!("cargo:rerun-if-changed={}", src.join("library").display());
 
     // Build UAPKI static libraries WITHOUT LTO.
+    //
+    // UAPKI hardcodes -flto in CMAKE_<lang>_FLAGS_RELEASE (both the clang and
+    // gcc branches). A GCC-LTO static archive holds only GIMPLE bitcode (slim
+    // objects, no real symbols), which rust-lld can't consume — so the shim's
+    // symbols come out "undefined" at the final link on Linux.
+    //
+    // A plain `set(... -flto)` can't be beaten by a -D override, and clearing
+    // CMAKE_BUILD_TYPE doesn't help because the cmake crate forces "Release".
+    // So we pick a custom build type UAPKI doesn't special-case (its _RELEASE
+    // flags never apply) and supply our own optimization via the base flags.
     let dst = cmake::Config::new(src.join("library"))
-        .define("CMAKE_BUILD_TYPE", "")
+        .profile("RelNoLTO")
         .define("UAPKI_LIBS_TYPE", "STATIC")
         .cflag("-O2")
         .cflag("-fPIC")

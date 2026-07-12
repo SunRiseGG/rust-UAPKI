@@ -17,13 +17,44 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ libcurl4-openssl-dev
+          sudo apt-get install -y cmake g++ libcurl4-openssl-dev binutils
 
-      # rust-toolchain.toml pins the channel; rustup honors it automatically
-      - name: Show toolchain
-        run: rustc --version && cargo --version && cmake --version
+      - name: Toolchain
+        run: rustc --version && cargo --version && cmake --version && ld.lld --version || true
 
-      # Statically links libuapki.a + libuapkic.a + libuapkif.a via
-      # --start-group — this job is what validates the Linux link path.
+      # ---- Diagnostics: build only the sys crate (runs build.rs → cmake) ----
+      - name: Build uapki-sys (produces archives)
+        run: cargo build -p uapki-sys --release
+
+      - name: Inspect libuapki.a
+        run: |
+          set -x
+          AR=$(find target -name libuapki.a -path '*out/build/out*' | head -1)
+          echo "ARCHIVE=$AR"
+          echo "=== members named verify-direct ==="
+          ar t "$AR" | grep -i verify-direct || echo "NO verify-direct member"
+          echo "=== nm: uapki_direct symbols ==="
+          nm "$AR" 2>/dev/null | grep uapki_direct || echo "NONE via nm"
+          echo "=== extract shim object and inspect ==="
+          mkdir -p /tmp/ex && cd /tmp/ex
+          OBJ=$(ar t "$AR" | grep -i verify-direct | head -1)
+          echo "OBJ=$OBJ"
+          ar x "$AR" "$OBJ" || true
+          file "$OBJ" || true
+          echo "--- LTO/GNU sections in shim object? ---"
+          readelf -S "$OBJ" 2>/dev/null | grep -iE 'lto|\.text|\.gnu' || echo "(no sections shown)"
+          echo "--- symbols in shim object ---"
+          nm "$OBJ" 2>/dev/null | grep -i uapki_direct || echo "NONE in shim object"
+
+      # ---- Diagnostics: capture the actual link command ----
+      - name: Verbose link attempt
+        if: always()
+        run: |
+          cargo test --release --no-run -vv > /tmp/vv.log 2>&1 || true
+          echo "=== uapki references on the final link command line ==="
+          grep -aoE '"-l" "[^"]*uapki[^"]*"|"-l" "static[^"]*"|"-L" "[^"]*build/out[^"]*"|"[^"]*libuapki[a-z]*\.a"' /tmp/vv.log | sort -u || echo "NONE FOUND"
+          echo "=== tail of log ==="
+          tail -40 /tmp/vv.log
+
       - name: cargo test
         run: cargo test --release --workspace
