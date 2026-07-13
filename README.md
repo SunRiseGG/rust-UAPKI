@@ -8,7 +8,7 @@ classes directly.
 | Crate | Role |
 |---|---|
 | `uapki` (root) | safe Rust API (`add_trusted_certs`, `verify`, `verify_file`) |
-| `uapki-sys` | raw FFI bindings + `build.rs` that statically links UAPKI |
+| `uapki-sys` | raw FFI bindings + `build.rs` that builds and links UAPKI |
 
 The UAPKI C code is wired in as a **git submodule** `uapki-sys/uapki` — a fork
 of [SunRiseGG/UAPKI](https://github.com/SunRiseGG/UAPKI) (branch `uapki-up`).
@@ -22,9 +22,9 @@ cargo build --release
 cargo test --release
 ```
 
-`uapki-sys/build.rs` builds UAPKI with cmake as **static** libraries
-(`libuapki.a` + `libuapkic.a` + `libuapkif.a`) using `-DUAPKI_LIBS_TYPE=STATIC`
-and links them directly together with `curl` and the C++ runtime.
+`uapki-sys/build.rs` builds UAPKI with cmake
+(`libuapki.a` + `libuapkic.a` + `libuapkif.a`) and links them together with
+`curl` and the C++ runtime.
 Requires: `git`, `cmake`, a C++ toolchain, and the
 `libcurl` dev package (on Linux — `libcurl4-openssl-dev`).
 

@@ -1,8 +1,8 @@
-//! Builds UAPKI with static linking.
+//! Builds and links UAPKI for the FFI bindings.
 //!
 //! The UAPKI C code is wired in as a git submodule at `uapki-sys/uapki`.
-//! build.rs compiles it with cmake into STATIC libraries
-//! (libuapki.a + libuapkic.a + libuapkif.a) and links them directly.
+//! build.rs compiles it with cmake into libuapki.a + libuapkic.a + libuapkif.a
+//! and links them.
 //!
 //! Override: `UAPKI_SRC_DIR` — use a different UAPKI source directory instead
 //! of the submodule.
@@ -32,10 +32,10 @@ fn main() {
     // Rebuild on any UAPKI source change.
     println!("cargo:rerun-if-changed={}", src.join("library").display());
 
-    // Build UAPKI static libraries. The fork disables LTO for STATIC builds in
-    // its CMakeLists (a GCC-LTO archive holds only bitcode, no real symbols,
-    // which the downstream LLVM linker can't resolve), so a plain Release build
-    // produces ordinary objects any linker reads.
+    // Build UAPKI. The fork disables LTO for this build type in its CMakeLists
+    // (a GCC-LTO archive holds only bitcode, no real symbols, which the
+    // downstream LLVM linker can't resolve), so a plain Release build produces
+    // ordinary objects any linker reads.
     let dst = cmake::Config::new(src.join("library"))
         .profile("Release")
         .define("UAPKI_LIBS_TYPE", "STATIC")
@@ -48,7 +48,7 @@ fn main() {
     link_system_deps();
 }
 
-/// Links the three UAPKI static archives.
+/// Links the three UAPKI archives.
 fn link_uapki_static() {
     for l in ["uapki", "uapkif", "uapkic"] {
         println!("cargo:rustc-link-lib=static={l}");
@@ -61,14 +61,14 @@ fn link_system_deps() {
     println!("cargo:rustc-link-lib=dylib=curl");
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     cpp_link_stdlib(&target_os);
-    // dl is needed for dlopen (UAPKI cm-providers) on Linux/Android
+    // dl is needed by UAPKI's cm-providers on Linux/Android
     if target_os == "linux" || target_os == "android" {
         println!("cargo:rustc-link-lib=dylib=dl");
     }
 }
 
 /// Links the C++ standard library. Honors the CXXSTDLIB override, otherwise
-/// picks per platform (as cc-rs / librocksdb-sys do).
+/// picks per platform.
 fn cpp_link_stdlib(target_os: &str) {
     if let Ok(stdlib) = env::var("CXXSTDLIB") {
         if !stdlib.is_empty() {
