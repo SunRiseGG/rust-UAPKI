@@ -115,3 +115,34 @@ fn concurrent_verify_and_add() {
         }
     });
 }
+
+#[test]
+fn struct_level_checks_signature_and_digest() {
+    setup();
+    let v = verify(&read("cades-t.p7s"), None, Validation::Struct).unwrap();
+    assert_eq!(v.signer_count, 1);
+
+    // The level makes no claim about certificates, but the digest is its own:
+    // altered content must still be refused.
+    let mut data = read("content.dat");
+    data.push(b'x');
+    assert_eq!(
+        verify(&read("detached.p7s"), Some(&data), Validation::Struct),
+        Err(Error::Invalid)
+    );
+}
+
+#[test]
+fn envelope_level_catches_what_struct_ignores() {
+    setup();
+    let sign = read("cades-t.p7s");
+    assert!(verify(&sign, None, Validation::Envelope).is_ok());
+
+    // Byte 3723 falls inside the signature timestamp. STRUCT reads only the
+    // signature and the content digest, so it accepts the envelope; ENVELOPE
+    // verifies what the envelope itself carries, and refuses.
+    let mut corrupted = sign.clone();
+    corrupted[3723] ^= 0xFF;
+    assert!(verify(&corrupted, None, Validation::Struct).is_ok());
+    assert!(verify(&corrupted, None, Validation::Envelope).is_err());
+}

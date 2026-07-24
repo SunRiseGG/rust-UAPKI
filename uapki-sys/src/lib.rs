@@ -5,18 +5,29 @@
 use std::os::raw::{c_char, c_int};
 
 unsafe extern "C" {
-    /// Adds trusted certificates (DER) to the global get_cerstore() cache.
-    /// `certs` — array of buffer pointers, `lens` — their lengths, `count` — number.
-    /// Returns 0 (RET_OK) or a UAPKI error code.
+    /// Adds to the trusted set, never removes; proxy may be null, timeouts are
+    /// milliseconds with 0 meaning "keep". Fully documented in verify-direct.cpp.
+    pub fn uapki_direct_init(
+        offline: c_int,
+        proxy_url: *const c_char,
+        proxy_credentials: *const c_char,
+        connect_timeout_ms: c_int,
+        total_timeout_ms: c_int,
+        only_crl: c_int,
+        certs: *const *const u8,
+        lens: *const usize,
+        count: usize,
+    ) -> c_int;
+
+    /// `certs` — buffer pointers, `lens` — their lengths. Returns 0 or a UAPKI code.
     pub fn uapki_direct_add_trusted(
         certs: *const *const u8,
         lens: *const usize,
         count: usize,
     ) -> c_int;
 
-    /// In-memory CMS/CAdES verification.
-    /// `data == null` → attached envelope; `validation_type`: 0=STRUCT, 1=CHAIN.
-    /// `out_signer_count` — number of signers; `out_all_valid` — 1 if all valid.
+    /// `data == null` → attached. validation_type: 0 STRUCT, 1 ENVELOPE, 2 CHAIN,
+    /// 3 FULL. out_verdict: 0 failed, 1 valid, 2 indeterminate.
     pub fn uapki_direct_verify(
         sig: *const u8,
         sig_len: usize,
@@ -24,21 +35,22 @@ unsafe extern "C" {
         data_len: usize,
         validation_type: c_int,
         out_signer_count: *mut c_int,
-        out_all_valid: *mut c_int,
+        out_verdict: *mut c_int,
     ) -> c_int;
 
-    /// Like `uapki_direct_verify`, but for detached data the library hashes it
-    /// from the file at `data_path` itself.
+    /// Detached, with the library hashing `data_path` itself.
     pub fn uapki_direct_verify_file(
         sig: *const u8,
         sig_len: usize,
         data_path: *const c_char,
         validation_type: c_int,
         out_signer_count: *mut c_int,
-        out_all_valid: *mut c_int,
+        out_verdict: *mut c_int,
     ) -> c_int;
 
-    /// Total / trusted certificate count in the global store.
+    /// Must not run concurrently with a verification — it frees what one borrows.
+    pub fn uapki_direct_clear_trusted() -> c_int;
+
     pub fn uapki_direct_cert_count(
         out_total: *mut usize,
         out_trusted: *mut usize,

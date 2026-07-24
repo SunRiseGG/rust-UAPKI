@@ -1,8 +1,6 @@
-//! TEMP diagnostic test: proves whether verify() leaves the envelope's
-//! non-trusted certificates in the process-global store after returning.
-//!
-//! Setup seeds ONLY the CA/root certs as trusted (NOT the leaf signer/TSP),
-//! so any growth we observe is the envelope's certs being added and not purged.
+//! Regression test: verify() must not leave the envelope's own certificates in
+//! the process-global store. Only the CA/root certs are seeded as trusted, so
+//! any growth would be the envelope's leaf and TSP certs failing to be purged.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -34,7 +32,6 @@ fn envelope_certs_accumulate() {
     let (t0, tr0) = count();
     println!("after seeding roots:      total={t0} trusted={tr0}");
 
-    // Verify the same signer several times.
     let sig = read("detached.p7s");
     let dat = read("content.dat");
     for i in 1..=3 {
@@ -44,7 +41,7 @@ fn envelope_certs_accumulate() {
         println!("after verify #{i} (detached): total={t} trusted={tr}");
     }
 
-    // A CAdES-T envelope carries extra TSP certs — verify it too.
+    // CAdES-T carries extra TSP certs.
     let cades_t = read("cades-t.p7s");
     let _ = verify(&cades_t, None, Validation::Chain);
     let (t1, tr1) = count();

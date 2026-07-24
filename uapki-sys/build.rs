@@ -48,7 +48,6 @@ fn main() {
     link_system_deps();
 }
 
-/// Links the three UAPKI archives.
 fn link_uapki_static() {
     for l in ["uapki", "uapkif", "uapkic"] {
         println!("cargo:rustc-link-lib=static={l}");
@@ -67,8 +66,7 @@ fn link_system_deps() {
     }
 }
 
-/// Links the C++ standard library. Honors the CXXSTDLIB override, otherwise
-/// picks per platform.
+/// Honors the CXXSTDLIB override, otherwise picks per platform.
 fn cpp_link_stdlib(target_os: &str) {
     if let Ok(stdlib) = env::var("CXXSTDLIB") {
         if !stdlib.is_empty() {
