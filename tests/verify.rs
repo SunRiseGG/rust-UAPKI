@@ -1,6 +1,6 @@
-//! Integration tests on real DSTU CAdES signatures (Diia test data).
-//! Trusted certificates are added once; tests run sequentially because
-//! UAPKI's certificate cache is global.
+//! Integration tests on real DSTU CAdES signatures (Diia test data). The
+//! trusted store is process-global, so setup seeds it once and no test here
+//! narrows it.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -93,7 +93,6 @@ fn concurrent_verify_and_add() {
         .collect();
 
     std::thread::scope(|s| {
-        // verification threads
         for _ in 0..8 {
             let (sig, dat) = (&sig, &dat);
             s.spawn(move || {
@@ -103,7 +102,6 @@ fn concurrent_verify_and_add() {
                 }
             });
         }
-        // concurrent (re-)additions of the trusted certs
         for _ in 0..2 {
             let certs = &certs;
             s.spawn(move || {
@@ -122,8 +120,7 @@ fn struct_level_checks_signature_and_digest() {
     let v = verify(&read("cades-t.p7s"), None, Validation::Struct).unwrap();
     assert_eq!(v.signer_count, 1);
 
-    // The level makes no claim about certificates, but the digest is its own:
-    // altered content must still be refused.
+    // No claim about certificates, but the digest is its own.
     let mut data = read("content.dat");
     data.push(b'x');
     assert_eq!(
@@ -138,9 +135,8 @@ fn envelope_level_catches_what_struct_ignores() {
     let sign = read("cades-t.p7s");
     assert!(verify(&sign, None, Validation::Envelope).is_ok());
 
-    // Byte 3723 falls inside the signature timestamp. STRUCT reads only the
-    // signature and the content digest, so it accepts the envelope; ENVELOPE
-    // verifies what the envelope itself carries, and refuses.
+    // Byte 3723 is inside the signature timestamp: STRUCT reads only signature
+    // and digest and accepts, ENVELOPE checks what the envelope carries.
     let mut corrupted = sign.clone();
     corrupted[3723] ^= 0xFF;
     assert!(verify(&corrupted, None, Validation::Struct).is_ok());

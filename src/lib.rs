@@ -1,8 +1,7 @@
 //! Safe Rust wrapper for digital-signature verification (CMS/CAdES, p7s)
 //! on top of UAPKI.
 //!
-//! Works through the direct C interface (`verify-direct.cpp` in the UAPKI fork),
-//! with the same crypto core as upstream.
+//! Through the direct C interface (`verify-direct.cpp` in the UAPKI fork).
 //!
 //! # Example
 //! ```no_run
@@ -16,10 +15,8 @@
 //! let _ok = verify(p7s, Some(data), Validation::Chain).is_ok();
 //! ```
 //!
-//! # Thread safety
-//! Everything is safe to call concurrently: [`verify`] and [`verify_file`] run
-//! in parallel, while [`init`] and [`add_trusted_certs`] are exclusive against
-//! them.
+//! [`verify`] and [`verify_file`] run concurrently; [`init`] and
+//! [`add_trusted_certs`] are exclusive against them.
 
 use std::ffi::CString;
 use std::marker::PhantomData;
@@ -64,9 +61,8 @@ impl Validation {
     }
 }
 
-/// What the C side answers with — the other half of the wire contract that
-/// [`Validation::to_code`] starts. Nothing links these numbers to the ones in
-/// verify-direct.cpp, so a change there is a change here; unknown fails closed.
+/// The other half of the wire contract [`Validation::to_code`] starts. Nothing
+/// links these numbers to verify-direct.cpp; unknown fails closed.
 enum Verdict {
     Failed,
     Valid,
@@ -85,9 +81,9 @@ impl Verdict {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    /// Failed to add trusted certificates; UAPKI error code.
+    /// UAPKI error code from adding trusted certificates.
     AddTrusted(i32),
-    /// Error during verification; UAPKI error code.
+    /// UAPKI error code raised during verification.
     Verify(i32),
     /// Signature is invalid (not all signers verified).
     Invalid,
@@ -96,7 +92,7 @@ pub enum Error {
     Indeterminate,
     /// Invalid data-file path (contains NUL).
     BadPath,
-    /// Failed to configure the library / HTTP layer; UAPKI error code.
+    /// UAPKI error code from configuring the library or HTTP layer.
     Configure(i32),
 }
 
@@ -108,8 +104,8 @@ pub struct Verified {
 /// How the library talks to the network while verifying.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Network<'a> {
-    /// Offline keeps the library off the network entirely; online enables the
-    /// OCSP/CRL fetching that [`Validation::Full`] needs.
+    /// Offline keeps the library off the network; online enables the OCSP/CRL
+    /// fetching [`Validation::Full`] needs.
     pub offline: bool,
     pub proxy: Option<(&'a str, &'a str)>,
     /// Milliseconds to reach the host; 0 keeps the current value.
@@ -132,9 +128,8 @@ impl Default for Network<'_> {
     }
 }
 
-/// A list of DER blobs as C wants it: an array of pointers plus a matching array
-/// of lengths. Keeping the two together is what makes them the same length, and
-/// the lifetime is what stops the list outliving the slices it points into.
+/// DER blobs as C wants them: pointers plus lengths. Holding both makes them the
+/// same length; the lifetime stops the list outliving what it points into.
 struct DerList<'a> {
     ptrs: Vec<*const u8>,
     lens: Vec<usize>,
@@ -150,15 +145,14 @@ impl<'a> DerList<'a> {
         }
     }
 
-    /// `(certs, lens, count)`, in the order every one of these calls takes them.
     fn as_parts(&self) -> (*const *const u8, *const usize, usize) {
         (self.ptrs.as_ptr(), self.lens.as_ptr(), self.ptrs.len())
     }
 }
 
-/// Network mode, request timeouts and the trusted CA certificates (DER). Call
-/// before verifying; calling again states the set afresh, so trust can be
-/// withdrawn as well as granted — [`add_trusted_certs`] only extends it.
+/// Network mode, timeouts and the trusted CA certificates (DER). Calling it again
+/// states the set afresh, so trust can be withdrawn — [`add_trusted_certs`] only
+/// extends it.
 pub fn init(network: Network<'_>, trusted_certs: &[&[u8]]) -> Result<(), Error> {
     let (url, credentials) = match network.proxy {
         Some((u, c)) => (
