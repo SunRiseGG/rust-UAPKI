@@ -108,10 +108,11 @@ pub struct Network<'a> {
     /// fetching [`Validation::Full`] needs.
     pub offline: bool,
     pub proxy: Option<(&'a str, &'a str)>,
-    /// Milliseconds to reach the host; 0 keeps the current value.
-    pub connect_timeout_ms: u32,
+    /// Milliseconds to reach the host; 0 keeps the current value. The C `int`
+    /// type, so it is passed to the library without a lossy conversion.
+    pub connect_timeout_ms: c_int,
     /// Milliseconds for the whole exchange; 0 keeps the current value.
-    pub total_timeout_ms: u32,
+    pub total_timeout_ms: c_int,
     /// Revocation status from CRLs alone, never OCSP.
     pub only_crl: bool,
 }
@@ -178,8 +179,8 @@ pub fn init(network: Network<'_>, trusted_certs: &[&[u8]]) -> Result<(), Error> 
             if network.offline { 1 } else { 0 },
             as_ptr(&url),
             as_ptr(&credentials),
-            network.connect_timeout_ms as c_int,
-            network.total_timeout_ms as c_int,
+            network.connect_timeout_ms,
+            network.total_timeout_ms,
             if network.only_crl { 1 } else { 0 },
             ptrs,
             lens,
@@ -207,7 +208,7 @@ pub fn add_trusted_certs(certs: &[&[u8]]) -> Result<(), Error> {
     }
 }
 
-fn interpret(ret: c_int, count: c_int, verdict: c_int) -> Result<Verified, Error> {
+fn interpret(ret: c_int, count: u32, verdict: c_int) -> Result<Verified, Error> {
     if ret != 0 {
         return Err(Error::Verify(ret));
     }
@@ -215,7 +216,7 @@ fn interpret(ret: c_int, count: c_int, verdict: c_int) -> Result<Verified, Error
         return Err(Error::Invalid);
     }
     match Verdict::from_code(verdict) {
-        Verdict::Valid => Ok(Verified { signer_count: count as u32 }),
+        Verdict::Valid => Ok(Verified { signer_count: count }),
         Verdict::Indeterminate => Err(Error::Indeterminate),
         Verdict::Failed => Err(Error::Invalid),
     }
@@ -228,7 +229,7 @@ pub fn verify(sign: &[u8], data: Option<&[u8]>, validation: Validation) -> Resul
         Some(d) => (d.as_ptr(), d.len()),
         None => (std::ptr::null(), 0),
     };
-    let mut count: c_int = 0;
+    let mut count: u32 = 0;
     let mut verdict: c_int = 0;
     let ret = unsafe {
         uapki_sys::uapki_direct_verify(
@@ -248,7 +249,7 @@ pub fn verify(sign: &[u8], data: Option<&[u8]>, validation: Validation) -> Resul
 pub fn verify_file(sign: &[u8], data_path: &str, validation: Validation) -> Result<Verified, Error> {
     let c_path = CString::new(data_path).map_err(|_| Error::BadPath)?;
     let _guard = read_lock(); // shared: concurrent with other verifications
-    let mut count: c_int = 0;
+    let mut count: u32 = 0;
     let mut verdict: c_int = 0;
     let ret = unsafe {
         uapki_sys::uapki_direct_verify_file(

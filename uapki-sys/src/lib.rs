@@ -34,7 +34,7 @@ unsafe extern "C" {
         data: *const u8,
         data_len: usize,
         validation_type: c_int,
-        out_signer_count: *mut c_int,
+        out_signer_count: *mut u32,
         out_verdict: *mut c_int,
     ) -> c_int;
 
@@ -44,7 +44,7 @@ unsafe extern "C" {
         sig_len: usize,
         data_path: *const c_char,
         validation_type: c_int,
-        out_signer_count: *mut c_int,
+        out_signer_count: *mut u32,
         out_verdict: *mut c_int,
     ) -> c_int;
 
